@@ -1,7 +1,5 @@
 # step 01
-pip install fastapi uvicorn torch torchvision scikit-learn numpy pillow fpdf python-multipart
-
-
+# Import necessary libraries
 # step 02
 import os
 import numpy as np
@@ -136,5 +134,3 @@ if __name__ == "__main__":
 
 
 
-# step 3
-python main.py
