@@ -4,3 +4,4 @@ __pycache__
 data
 best_convnext.pth
 test
+Instance_Segementation_Model.pt
