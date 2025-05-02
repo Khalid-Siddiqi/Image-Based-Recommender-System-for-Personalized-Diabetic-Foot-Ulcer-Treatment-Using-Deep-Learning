@@ -1,6 +1,6 @@
-
-
 # predict_knn.py
+# Requires: pip install torch torchvision scikit-learn pillow numpy
+
 import os
 import io
 import numpy as np
@@ -10,16 +10,45 @@ from torchvision.models import convnext_tiny
 from PIL import Image
 from sklearn.neighbors import NearestNeighbors
 
+# Mapping Wagner grades to treatment plans
+TREATMENT_MAP = {
+    1: [
+        "Offloading (reduce pressure on foot)",
+        "Local wound care (cleaning, basic dressings)",
+        "Monitor for progression",
+        "Antibiotics if cellulitis is present"
+    ],
+    2: [
+        "Aggressive wound care",
+        "Specialised dressings",
+        "Consider minor surgical debridement",
+        "Start antibiotics prophylactically"
+    ],
+    3: [
+        "Surgical debridement required",
+        "Broad-spectrum IV antibiotics",
+        "Imaging to assess bone infection (MRI)",
+        "Possible hospitalisation"
+    ],
+    4: [
+        "Emergency surgical intervention (e.g., amputation)",
+        "Vascular assessment for blood flow",
+        "IV antibiotics",
+        "Hospitalisation and multidisciplinary team management"
+    ]
+}
+
+# Load ConvNext trunk as feature extractor
 def load_feature_extractor(model_path, device='cuda'):
     model = convnext_tiny(pretrained=False)
     model.classifier[2] = torch.nn.Linear(model.classifier[2].in_features, 4)
     state = torch.load(model_path, map_location=device)
     model.load_state_dict(state)
     model.to(device).eval()
+    # strip final head
     trunk = torch.nn.Sequential(*list(model.children())[:-1]).to(device)
     return trunk
 
-# Build recommender
 class DfuRecommender:
     def __init__(self, feats_np, grades_np, paths_np, n_neighbors=6):
         self.feats = np.load(feats_np)
@@ -35,10 +64,12 @@ class DfuRecommender:
         dists, idxs = self.knn.kneighbors(f, n_neighbors=k+1)
         results = []
         for dist, idx in zip(dists[0][1:], idxs[0][1:]):
+            grade = int(self.grades[idx])
             results.append({
                 'path': self.paths[idx],
-                'grade': int(self.grades[idx]),
-                'distance': float(dist)
+                'grade': grade,
+                'distance': float(dist),
+                'treatment_plan': TREATMENT_MAP.get(grade, [])
             })
         return results
 
@@ -54,7 +85,6 @@ if __name__ == '__main__':
     parser.add_argument('--device', default='cuda')
     args = parser.parse_args()
 
-    # Setup
     transform = transforms.Compose([
         transforms.Resize((224,224)),
         transforms.ToTensor(),
@@ -63,10 +93,15 @@ if __name__ == '__main__':
     extractor = load_feature_extractor(args.model_path, device=args.device)
     recommender = DfuRecommender(args.feats, args.grades, args.paths)
 
-    # Process new image
     img = Image.open(args.image).convert('RGB')
     img_t = transform(img)
     recs = recommender.recommend(img_t, extractor, k=args.k, device=args.device)
-    print("Top similar cases:")
-    for r in recs:
-        print(r)
+
+    print("Top similar cases and recommended treatments:\n")
+    for idx, r in enumerate(recs, start=1):
+        print(f"{idx}. Path: {r['path']}")
+        print(f"   Wagner Grade: {r['grade']}")
+        print("   Treatment Plan:")
+        for step in r['treatment_plan']:
+            print(f"     - {step}")
+        print()
