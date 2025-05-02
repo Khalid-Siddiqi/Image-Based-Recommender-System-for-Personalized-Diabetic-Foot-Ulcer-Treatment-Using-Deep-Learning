@@ -76,13 +76,13 @@ class DfuRecommender:
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Predict DFU recommendations')
-    parser.add_argument('--model_path', required=True, help='Path to ConvNext .pth')
-    parser.add_argument('--feats', required=True, help='Path to dfu_feats.npy')
-    parser.add_argument('--grades', required=True, help='Path to dfu_grades.npy')
-    parser.add_argument('--paths', required=True, help='Path to dfu_paths.npy')
+    parser.add_argument('best_convnext.pth', required=True, help='Path to ConvNext .pth')
+    parser.add_argument('npy_folder\dfu_feats.npy', required=True, help='Path to dfu_feats.npy')
+    parser.add_argument('npy_folder\dfu_grades.npy', required=True, help='Path to dfu_grades.npy')
+    parser.add_argument('npy_folder\dfu_paths.npy', required=True, help='Path to dfu_paths.npy')
     parser.add_argument('--image', required=True, help='Path to new DFU image')
     parser.add_argument('--k', type=int, default=5, help='Number of neighbors')
-    parser.add_argument('--device', default='cuda')
+    parser.add_argument('--device', default='cpu', help='Device to use (cpu or cuda)')
     args = parser.parse_args()
 
     transform = transforms.Compose([
