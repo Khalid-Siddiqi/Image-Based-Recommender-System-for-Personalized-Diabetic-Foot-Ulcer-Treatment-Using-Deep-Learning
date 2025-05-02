@@ -1,136 +1,78 @@
-# step 01
-# Import necessary libraries
-# step 02
+# app.py
+
 import os
-import numpy as np
+import io
+import torch
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-import torch
-from torchvision import transforms
 from PIL import Image
-from sklearn.neighbors import NearestNeighbors
-from fpdf import FPDF
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from predict_knn import load_feature_extractor, DfuRecommender, TREATMENT_MAP, transform
+
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# Setup
+model_path = 'model.pth'
+feats_path = 'dfu_feats.npy'
+grades_path = 'dfu_grades.npy'
+paths_path = 'dfu_paths.npy'
+
+extractor = load_feature_extractor(model_path, device=DEVICE)
+recommender = DfuRecommender(feats_path, grades_path, paths_path)
 
 app = FastAPI()
 
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.post("/predict")
+async def predict_and_generate_pdf(file: UploadFile = File(...)):
+    contents = await file.read()
+    img = Image.open(io.BytesIO(contents)).convert('RGB')
+    img_t = transform(img)
 
-# Load model and setup feature extractor
-def load_model():
-    model = torch.load('swin_model.pth')
-    model.eval()
-    feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
-    return model, feature_extractor
+    recs = recommender.recommend(img_t, extractor, k=5, device=DEVICE)
 
-model, feature_extractor = load_model()
+    # Generate PDF
+    pdf_path = "treatment_report.pdf"
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    width, height = letter
 
-# Preprocessing transforms
-preprocess = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, height - 50, "DFU Treatment Recommendation Report")
+    c.setFont("Helvetica", 12)
+    y = height - 80
 
-# Load stored features and metadata (precomputed from your dataset)
-stored_features = np.load('stored_features.npy')  # Shape: [num_samples, embedding_dim]
-stored_metadata = np.load('stored_metadata.npy', allow_pickle=True)  # Contains Wagner grades and case IDs
+    for idx, rec in enumerate(recs, 1):
+        if y < 180:  # Add new page if needed
+            c.showPage()
+            y = height - 50
 
-# Treatment mapping dictionary
-treatment_plans = {
-    1: "Offloading, local wound care, monitor for progression.",
-    2: "Surgical debridement, antibiotics, specialized dressings.",
-    3: "IV antibiotics, hospitalization, bone infection imaging.",
-    4: "Emergency surgery, vascular assessment, multidisciplinary care."
-}
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, f"{idx}. Similar Case: {os.path.basename(rec['path'])}")
+        y -= 20
 
-def extract_features(image_path):
-    """Extract features using Swin Transformer"""
-    img = Image.open(image_path).convert('RGB')
-    img_tensor = preprocess(img).unsqueeze(0)
-    with torch.no_grad():
-        features = feature_extractor(img_tensor).squeeze().numpy()
-    return features
+        # Load and embed image
+        try:
+            img_path = rec['path']
+            case_img = Image.open(img_path).convert('RGB')
+            case_img.thumbnail((120, 120))
+            img_reader = ImageReader(case_img)
+            c.drawImage(img_reader, 50, y - 120, width=120, height=120)
+        except Exception as e:
+            c.drawString(50, y - 20, f"[Image load failed: {e}]")
+        y -= 130
 
-def find_similar_cases(query_features, k=5):
-    """Find similar cases using KNN"""
-    nn = NearestNeighbors(n_neighbors=k, metric='cosine')
-    nn.fit(stored_features)
-    distances, indices = nn.kneighbors([query_features])
-    return indices[0]
+        # Grade and treatment
+        c.setFont("Helvetica", 12)
+        c.drawString(180, y + 100, f"Wagner Grade: {rec['grade']}")
+        c.drawString(180, y + 80, "Recommended Treatments:")
+        offset_y = 60
+        for step in rec['treatment_plan']:
+            c.drawString(200, y + offset_y, f"- {step}")
+            offset_y -= 15
 
-def create_pdf_report(grade, treatment, image_path, output_path="report.pdf"):
-    """Generate PDF report"""
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    
-    # Add content
-    pdf.cell(200, 10, txt=f"Predicted Wagner Grade: {grade}", ln=True)
-    pdf.cell(200, 10, txt=f"Recommended Treatment:", ln=True)
-    pdf.multi_cell(0, 10, txt=treatment)
-    
-    # Add image
-    pdf.image(image_path, x=10, y=50, w=100)
-    
-    pdf.output(output_path)
-    return output_path
+        y = y + offset_y - 40  # Prepare for next block
 
-@app.post("/process-dfu")
-async def process_dfu(file: UploadFile = File(...)):
-    # Save uploaded file temporarily
-    temp_path = f"temp_{file.filename}"
-    with open(temp_path, "wb") as buffer:
-        buffer.write(await file.read())
-    
-    try:
-        # 1. Feature extraction
-        features = extract_features(temp_path)
-        
-        # 2. Predict Wagner grade
-        img_tensor = preprocess(Image.open(temp_path).convert('RGB')).unsqueeze(0)
-        with torch.no_grad():
-            output = model(img_tensor)
-        grade = int(torch.argmax(output).item()) + 1  # Assuming grades are 1-4
-        
-        # 3. Find similar cases
-        similar_indices = find_similar_cases(features)
-        similar_cases = stored_metadata[similar_indices].tolist()
-        
-        # 4. Get treatment plan
-        treatment = treatment_plans.get(grade, "Unknown grade")
-        
-        # 5. Generate PDF report
-        report_path = create_pdf_report(grade, treatment, temp_path)
-        
-        # 6. Grad-CAM (implement your Grad-CAM logic here)
-        # grad_cam_path = generate_grad_cam(temp_path)
-        
-        return {
-            "grade": grade,
-            "treatment": treatment,
-            "similar_cases": similar_cases,
-            "report_path": report_path
-        }
-    
-    finally:
-        # Cleanup temporary file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+    c.save()
 
-@app.get("/get-report")
-async def get_report(path: str):
-    return FileResponse(path, media_type='application/pdf', filename="treatment_report.pdf")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-
+    return FileResponse(path=pdf_path, filename="treatment_report.pdf", media_type='application/pdf')
