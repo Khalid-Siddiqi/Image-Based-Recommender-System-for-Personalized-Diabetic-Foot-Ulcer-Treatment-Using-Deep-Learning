@@ -14,11 +14,12 @@ from predict_knn import load_feature_extractor, DfuRecommender, TREATMENT_MAP, t
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Setup
-model_path = 'model.pth'
-feats_path = 'dfu_feats.npy'
-grades_path = 'dfu_grades.npy'
-paths_path = 'dfu_paths.npy'
+model_path = 'best_convnext.pth'
+feats_path = 'npy_folder/dfu_feats.npy'
+grades_path = 'npy_folder/dfu_grades.npy'
+paths_path = 'npy_folder/dfu_paths.npy'
 
+# Load the feature extractor
 extractor = load_feature_extractor(model_path, device=DEVICE)
 recommender = DfuRecommender(feats_path, grades_path, paths_path)
 

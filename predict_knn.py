@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torchvision import transforms
-from torchvision.models import convnext_tiny
+from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
 from sklearn.neighbors import NearestNeighbors
 from PIL import Image
 
@@ -51,13 +51,15 @@ transform = transforms.Compose([
 # ConvNext feature extractor loader
 # ========================
 def load_feature_extractor(model_path, device='cpu'):
-    model = convnext_tiny(pretrained=False)
-    model.classifier[2] = torch.nn.Linear(model.classifier[2].in_features, 4)
-    state = torch.load(model_path, map_location=device)
-    model.load_state_dict(state)
-    model.to(device).eval()
-    trunk = torch.nn.Sequential(*list(model.children())[:-1]).to(device)
-    return trunk
+    try:
+        model = convnext_tiny(weights=ConvNeXt_Tiny_Weights.DEFAULT)  # Use weights instead of pretrained
+        state_dict = torch.load(model_path, map_location=device)
+        model.load_state_dict(state_dict, strict=False)  # Use strict=False to ignore unexpected/missing keys
+        model.to(device).eval()  # Set the model to evaluation mode
+        trunk = torch.nn.Sequential(*list(model.children())[:-1]).to(device)  # Extract feature extractor
+        return trunk
+    except Exception as e:
+        raise Exception(f"Failed to load feature extractor: {str(e)}")
 
 # ========================
 # KNN recommender class
