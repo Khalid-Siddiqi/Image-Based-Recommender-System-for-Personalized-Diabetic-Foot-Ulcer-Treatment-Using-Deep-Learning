@@ -9,6 +9,7 @@ python -m venv venv
 pip install --upgrade pip
 pip install fastapi uvicorn torch torchvision timm pillow ultralytics python-multipart scikit-learn fpdf python-multipart numpy pandas matplotlib jupyter reportlab
 
+pip install torchcam
 
 ### Step 4: Freeze dependencies
 pip freeze > requirements.txt

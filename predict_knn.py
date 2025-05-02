@@ -7,7 +7,9 @@ from torchvision import transforms
 from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
 from sklearn.neighbors import NearestNeighbors
 from PIL import Image
-
+import cv2
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
 # ========================
 # Mapping Wagner grades to treatment plans
 # ========================
@@ -119,3 +121,67 @@ if __name__ == '__main__':
         for step in r['treatment_plan']:
             print(f"     - {step}")
         print()
+
+def predict_grade(img_tensor, model_path, device='cpu'):
+    from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
+    model = convnext_tiny(weights=ConvNeXt_Tiny_Weights.DEFAULT)
+    model.classifier[2] = torch.nn.Linear(model.classifier[2].in_features, 4)  # 4 classes
+    model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
+    model.to(device).eval()
+    with torch.no_grad():
+        logits = model(img_tensor.unsqueeze(0).to(device))
+        pred = torch.argmax(logits, dim=1).item()
+    return pred + 1  # Convert 0-indexed to Grade 1-4
+
+def generate_gradcam(img_tensor, model_path, device='cpu'):
+    from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
+
+    model = convnext_tiny(weights=ConvNeXt_Tiny_Weights.DEFAULT)
+    model.classifier[2] = torch.nn.Linear(model.classifier[2].in_features, 4)
+    model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
+    model.to(device).eval()
+
+    img_tensor = img_tensor.unsqueeze(0).to(device)
+
+    # Register hook to capture gradients
+    gradients = []
+    activations = []
+
+    def backward_hook(module, grad_input, grad_output):
+        gradients.append(grad_output[0])
+
+    def forward_hook(module, input, output):
+        activations.append(output)
+
+    target_layer = model.features[-1]
+    target_layer.register_forward_hook(forward_hook)
+    target_layer.register_backward_hook(backward_hook)
+
+    # Forward pass
+    output = model(img_tensor)
+    pred_class = output.argmax(dim=1)
+    model.zero_grad()
+    class_loss = output[0, pred_class]
+    class_loss.backward()
+
+    grad = gradients[0].detach()
+    act = activations[0].detach()
+
+    weights = grad.mean(dim=(2, 3), keepdim=True)
+    cam = (weights * act).sum(dim=1).squeeze()
+    cam = F.relu(cam)
+
+    cam = cam - cam.min()
+    cam = cam / cam.max()
+    cam = cam.cpu().numpy()
+    cam = cv2.resize(cam, (224, 224))
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
+
+    # Convert original tensor back to image
+    img_np = img_tensor.squeeze().cpu().numpy().transpose(1, 2, 0)
+    img_np = (img_np * np.array([0.229, 0.224, 0.225])) + np.array([0.485, 0.456, 0.406])
+    img_np = np.clip(img_np, 0, 1)
+    img_np = np.uint8(255 * img_np)
+
+    overlay = cv2.addWeighted(img_np, 0.6, heatmap, 0.4, 0)
+    return Image.fromarray(overlay)
