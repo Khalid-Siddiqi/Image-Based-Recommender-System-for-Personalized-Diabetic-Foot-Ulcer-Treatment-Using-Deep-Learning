@@ -22,21 +22,5 @@ echo "👉 Choose the one from './venv' folder"
 ## How to run
 uvicorn main:app --reload
 
-## How TO USE Postman
-Endpoint: POST http://127.0.0.1:8000/analyze/
-Body type: form-data
-
-Key: file (type: File)
-
-Value: upload your image
-
-## What you will get in Response
-Response: You’ll get a streamed image
-
-Headers (Response):
-
-X-DFU-Grade: Predicted class label
-
-X-Class-Index: Class index
-
-X-Confidence: Confidence score
+## Test using this
+Endpoint: POST http://127.0.0.1:8000/docs/
