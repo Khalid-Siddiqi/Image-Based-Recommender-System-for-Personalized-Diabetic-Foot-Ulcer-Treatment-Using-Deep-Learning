@@ -192,8 +192,8 @@ def run_instance_segmentation(pil_image):
 
 app = FastAPI()
 
-@app.post("/predict")
 async def predict_and_generate_pdf(file: UploadFile = File(...)):
+    print("Received file:", file.filename)    
     contents = await file.read()
     img = Image.open(io.BytesIO(contents)).convert('RGB')
     heatmap_img, found_ulcer = run_instance_segmentation(img)
