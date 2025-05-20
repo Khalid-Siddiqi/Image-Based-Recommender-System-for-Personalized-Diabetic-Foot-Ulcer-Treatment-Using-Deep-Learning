@@ -1,6 +1,6 @@
 # Image-Based-Recommender-System-for-Personalized-Diabetic-Foot-Ulcer-Treatment-Using-Deep-Learning
 
-![Alt Text](DFU_Treatment_Recommendation_Pipeline_Using_YOLOv11_Segmentation_and_ConvNeXt-Based_Case_Retrieval.png)
+![Alt Text](Architecture.jpg)
 
 ### Step 1: Create a new virtual environment named 'venv'
 python -m venv venv
