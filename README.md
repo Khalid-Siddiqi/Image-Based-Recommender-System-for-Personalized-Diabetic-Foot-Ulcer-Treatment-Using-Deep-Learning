@@ -56,8 +56,8 @@ This project enables users to upload DFU images via a mobile app, which are then
 | Frontend         | ADPM Mobile App      |
 | Backend          | Python, FastAPI      |
 | Image Storage    | Supabase Storage     |
-| Model Inference  | ConvNext             |
-| Segmentation     | YOLOv1-seg           |
+| Model Inference  | ConvNext(2022)             |
+| Segmentation     | YOLOv11-seg(2024)           |
 | Similarity Search| KNN + Cosine Similarity |
 | Database         | Supabase (PostgreSQL)|
 | Reporting        | PDF Generator (e.g. ReportLab) |
