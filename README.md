@@ -53,16 +53,16 @@ This project enables users to upload DFU images via a mobile app, which are then
 
 | Component         | Technology           |
 |------------------|----------------------|
-| Frontend         | ADPM Mobile App      |
+| Frontend         | React Native         |
 | Backend          | Python, FastAPI      |
 | Image Storage    | Supabase Storage     |
-| Model Inference  | ConvNext(2022)             |
-| Segmentation     | YOLOv11-seg(2024)           |
+| Classification   | ConvNext(2022)       |
+| Segmentation     | YOLOv11-seg(2024)    |
 | Similarity Search| KNN + Cosine Similarity |
 | Database         | Supabase (PostgreSQL)|
 | Reporting        | PDF Generator (e.g. ReportLab) |
 
-## Setup and Run Guidlines
+## Setup and Run Guidelines
 ### Step 1: Create a new virtual environment named 'venv'
 python -m venv venv
 
