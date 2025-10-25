@@ -9,7 +9,7 @@ An end-to-end system for automated **Diabetic Foot Ulcer (DFU)** grade classific
 This project enables users to upload DFU images via a mobile app, which are then processed through a series of AI and retrieval pipelines to generate a treatment report based on the ulcer grade and visual similarity to past cases.
 
 ![System Architecture](Architecture.jpg)
-
+![Sample Report]()
 ---
 
 ## 🧠 Workflow Description
